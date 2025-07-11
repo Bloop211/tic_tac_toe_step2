@@ -1,12 +1,13 @@
 from dataclasses import dataclass, field
-import redis
+import redis.asyncio as redis
 import json
 
 redis_client = redis.Redis(
 host = "ai.thewcl.com",
 port = 6379,
 password = "atmega328",
-db = 1
+db = 1,
+decode_responses=True 
 )
 REDIS_GAME_STATE_KEY = "tic_tac_toe:game_state"
 team_number = 1
@@ -79,22 +80,20 @@ class TicTacToeBoard:
         "positions": self.positions
     })
     
-    def save_to_redis(self, redis_client, key):
+    async def save_to_redis(self, redis_client, key):
         json_string = self.serialize()
         board_dict = json.loads(json_string) # convert JSON str back to dict
-        redis_client.json().set(key, ".", board_dict)
+        await redis_client.json().set(key, ".", board_dict)
 
     @classmethod
-    def load_from_redis(cls):
-        data = redis_client.json().get(key)
+    async def load_from_redis(cls, redis_client, key):
+        data = await redis_client.json().get(key, ".")
         if data is None:
             raise ValueError(f"No board data found in Redis for key: {key}")
         return cls(**data)
     
-    def reset(self):
+    async def reset(self):
         self.state = "is_playing"
         self.player_turn = "x"
         self.positions = ["", "", "", "", "", "", "", "", ""] 
-        self.save_to_redis(redis_client, key)
-
-
+        await self.save_to_redis(redis_client, key)
