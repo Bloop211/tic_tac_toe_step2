@@ -1,10 +1,11 @@
 from tic_tac_toe_step1 import TicTacToeBoard, redis_client, REDIS_GAME_STATE_KEY
 import argparse
+import asyncio
 
 key = REDIS_GAME_STATE_KEY
 
 try:
-    board = TicTacToeBoard.load_from_redis() # Try to load existing board from Redis, or create a new one if not found
+    board = await TicTacToeBoard.load_from_redis() # Try to load existing board from Redis, or create a new one if not found
 except ValueError:
     print("Create new board")
     board = TicTacToeBoard()
@@ -18,7 +19,7 @@ args = parser.parse_args()
 
 if args.reset:
     board = TicTacToeBoard()
-    board.reset()
+    board.reset(redis_client, key)
     print("Board reset.")
     exit()
 
