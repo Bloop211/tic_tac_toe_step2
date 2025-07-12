@@ -1,4 +1,4 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, asdict
 import redis.asyncio as redis
 import json
 
@@ -9,7 +9,7 @@ password = "atmega328",
 db = 1,
 decode_responses=True 
 )
-REDIS_GAME_STATE_KEY = "tic_tac_toe:game_state"
+REDIS_GAME_STATE_KEY = "tic_tac_toe:game_state:{team_number}"
 team_number = 1
 key = REDIS_GAME_STATE_KEY.format(team_number=team_number)
 
@@ -26,24 +26,33 @@ class TicTacToeBoard:
             return False
 
     def make_move(self, index: int):
+        result = {"move success": False, "message": "", "board": self.positions.copy()} # Initializes success to False, message to empty string, and board to a copy of the current board state
+        
         if self.state != "is_playing":
-            print("Game is not in progress.")
-            return
+            result["message"] = "Game is not in progress."
+            return result
         if index < 0 or index > 8:
-            print("Invalid position.")
-            return
+            result["message"] = "Invalid position."
+            return result
         if self.positions[index] != "":
-            print("Position already taken.")
-            return
+            result["message"] = "Position already taken."
+            return result
+        
         self.positions[index] = self.player_turn
-        print(self.positions)
+        result["board"] = self.positions.copy()
+
         if self.check_winner():
-            print("win")
-            return
+            result["move success"] = True
+            result["message"] = f"Player {self.player_turn} wins!"
+            return result
         if self.check_draw():
-            print("draw")
-            return
-        self.switch_turn()     
+            result["move success"] = True
+            result["message"] = "draw"
+            return result
+        self.switch_turn()
+        result["move success"] = True
+        result["message"] = f"Move accepted. Next turn: {self.player_turn}."
+        return result   
            
     def check_winner(self):
         winning_combinations = [
@@ -55,14 +64,12 @@ class TicTacToeBoard:
         for combination in winning_combinations:
             a, b, c = combination
             if self.positions[a] != "" and self.positions[a] == self.positions[b] == self.positions[c]:
-                print(f"Player {self.positions[a]} wins!")
                 self.state = f"{self.positions[a]}_won!"
                 return True
         return False
     
     def check_draw(self):
         if "" not in self.positions:
-            print("Game is a draw!")
             self.state = "draw"
             return True
         return False 
@@ -83,17 +90,27 @@ class TicTacToeBoard:
     async def save_to_redis(self, redis_client, key):
         json_string = self.serialize()
         board_dict = json.loads(json_string) # convert JSON str back to dict
-        await redis_client.json().set(key, ".", board_dict)
+        await redis_client.json().set(key, ".", board_dict) # figure out later
 
     @classmethod
     async def load_from_redis(cls, redis_client, key):
-        data = await redis_client.json().get(key, ".")
+        data = await redis_client.json().get(key, ".") 
         if data is None:
             raise ValueError(f"No board data found in Redis for key: {key}")
-        return cls(**data)
+        return cls(**data) # figure out later
     
     async def reset(self):
         self.state = "is_playing"
         self.player_turn = "x"
         self.positions = ["", "", "", "", "", "", "", "", ""] 
         await self.save_to_redis(redis_client, key)
+        return {
+            "status": "board_reset",
+            "positions": self.positions,
+            "player_turn": self.player_turn
+        }
+    
+    def to_dict(self):
+        board_to_dict = asdict(self)
+        board_to_dict["positions"] = self.positions.copy() # This ensures that the positions list in the dictionary is a copy rather than a reference to the original list
+        return board_to_dict
