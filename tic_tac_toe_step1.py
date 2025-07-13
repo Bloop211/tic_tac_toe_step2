@@ -3,10 +3,9 @@ import redis.asyncio as redis
 import json
 
 redis_client = redis.Redis(
-host = "ai.thewcl.com",
+host = "localhost",
 port = 6379,
-password = "atmega328",
-db = 1,
+db = 0,
 decode_responses=True 
 )
 REDIS_GAME_STATE_KEY = "tic_tac_toe:game_state:{team_number}"
@@ -25,7 +24,7 @@ class TicTacToeBoard:
         else:
             return False
 
-    def make_move(self, index: int):
+    def make_move(self, index: int, player: str = None):
         result = {"move success": False, "message": "", "board": self.positions.copy()} # Initializes success to False, message to empty string, and board to a copy of the current board state
         
         if self.state != "is_playing":
@@ -38,6 +37,9 @@ class TicTacToeBoard:
             result["message"] = "Position already taken."
             return result
         
+        if player and player != self.player_turn:
+            result["message"] = f"It's not player {player}'s turn."
+            return result
         self.positions[index] = self.player_turn
         result["board"] = self.positions.copy()
 
